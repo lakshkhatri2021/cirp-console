@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}</style>
+<title>CIRP Operations Console</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: control room. Estate on the left, the incident queue in the centre,
+   the live event stream on the right; a detail drawer slides over from the right. */
+:root {
+  --bg: #eef1f5; --panel: #ffffff; --panel-2: #f6f8fb; --ink: #142033; --muted: #5a6577;
+  --faint: #8a94a5; --line: #d9dfe8; --line-strong: #c3cbd7;
+  --brand: #17365c; --brand-ink: #ffffff; --brand-soft: #e3ebf6; --focus: #2f6fde;
+  --ok: #18794e; --ok-soft: #e3f3ea; --crit: #c0261b; --crit-soft: #fbe9e7;
+  --high: #c2560c; --high-soft: #fcefe4; --med: #9a6b00; --med-soft: #fbf3dc;
+  --low: #2f63a8; --low-soft: #e6eef9; --ai: #6b3fc4; --ai-soft: #efe9fb;
+  --term-bg: #0f1724; --term-ink: #cfd8e6; --shadow: 0 10px 30px rgba(15, 30, 55, .14);
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", "IBM Plex Sans", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1420; --panel: #151e2c; --panel-2: #1a2535; --ink: #e4e9f1; --muted: #9aa6b8;
+    --faint: #6f7b8e; --line: #263347; --line-strong: #33425a;
+    --brand: #1f4677; --brand-ink: #ffffff; --brand-soft: #1d2d45; --focus: #6aa0ff;
+    --ok: #4cc38a; --ok-soft: #12301f; --crit: #ff7a6b; --crit-soft: #3a1714;
+    --high: #ff9a52; --high-soft: #3a2210; --med: #e5b84a; --med-soft: #33290d;
+    --low: #7fb0f5; --low-soft: #15284a; --ai: #b796ff; --ai-soft: #2a1f47;
+    --term-bg: #0a0f18; --term-ink: #cfd8e6; --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1420; --panel: #151e2c; --panel-2: #1a2535; --ink: #e4e9f1; --muted: #9aa6b8;
+  --faint: #6f7b8e; --line: #263347; --line-strong: #33425a;
+  --brand: #1f4677; --brand-ink: #ffffff; --brand-soft: #1d2d45; --focus: #6aa0ff;
+  --ok: #4cc38a; --ok-soft: #12301f; --crit: #ff7a6b; --crit-soft: #3a1714;
+  --high: #ff9a52; --high-soft: #3a2210; --med: #e5b84a; --med-soft: #33290d;
+  --low: #7fb0f5; --low-soft: #15284a; --ai: #b796ff; --ai-soft: #2a1f47;
+  --term-bg: #0a0f18; --term-ink: #cfd8e6; --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font-ui); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.mono { font-family: var(--font-data); }
+.num { font-variant-numeric: tabular-nums; }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* ---------- buttons, chips, form fields */
+.btn { border: 1px solid var(--line-strong); background: var(--panel); border-radius: 6px; padding: 6px 11px;
+       cursor: pointer; font-weight: 500; font-size: 13px; line-height: 1.2; }
+.btn:hover:not(:disabled) { border-color: var(--brand); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink);
+               text-transform: uppercase; letter-spacing: .05em; font-size: 12px; font-weight: 600; }
+.btn.ai { border-color: var(--ai); color: var(--ai); }
+.btn.danger { border-color: var(--crit); color: var(--crit); }
+.btn.small { padding: 4px 8px; font-size: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; border-radius: 999px;
+        padding: 2px 8px; border: 1px solid transparent; white-space: nowrap; line-height: 1.4; }
+.sev-Critical { background: var(--crit-soft); color: var(--crit); border-color: var(--crit); }
+.sev-High { background: var(--high-soft); color: var(--high); border-color: var(--high); }
+.sev-Medium { background: var(--med-soft); color: var(--med); border-color: var(--med); }
+.sev-Low { background: var(--low-soft); color: var(--low); border-color: var(--low); }
+.chip.status { text-transform: uppercase; letter-spacing: .06em; color: var(--brand); border-color: var(--line-strong);
+               background: var(--panel); }
+:root[data-theme="dark"] .chip.status { color: var(--ink); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.status { color: var(--ink); } }
+.chip.ai { background: var(--ai-soft); color: var(--ai); border-color: var(--ai); }
+.chip.breach { background: var(--crit); color: var(--panel); }
+.chip.ok { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+label.field { display: grid; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 500; min-width: 0; }
+input, select, textarea { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--line-strong);
+  border-radius: 6px; background: var(--panel); color: var(--ink); font-size: 13.5px; }
+textarea { resize: vertical; min-height: 84px; }
+.err { color: var(--crit); font-size: 12px; min-height: 16px; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin: 0; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+
+/* ---------- sign-in */
+#view-login { min-height: 100%; display: grid; place-items: center; padding-block: 40px; }
+.login { width: min(760px, 100%); display: grid; gap: 20px; }
+.login-head h1 { font-family: var(--font-display); font-size: 30px; font-weight: 700; letter-spacing: -.01em; }
+.login-head p { color: var(--muted); max-width: 62ch; margin: 6px 0 0; }
+.users { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.user-card { text-align: left; border: 1px solid var(--line-strong); background: var(--panel); border-radius: 8px;
+  padding: 12px 14px; cursor: pointer; display: grid; gap: 4px; }
+.user-card[aria-pressed="true"] { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand) inset; }
+.user-card b { font-size: 14px; }
+.user-card .role { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--brand); font-weight: 600; }
+:root[data-theme="dark"] .user-card .role { color: var(--low); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .user-card .role { color: var(--low); } }
+.user-card small { color: var(--muted); font-size: 12px; }
+.login-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.login-foot small { color: var(--muted); max-width: 52ch; }
+#signin { padding: 9px 22px; }
+
+/* ---------- top bar */
+.topbar { background: var(--brand); color: var(--brand-ink); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--brand); }
+.topbar-in { display: flex; align-items: center; gap: 18px; padding-block: 10px; flex-wrap: wrap; }
+.brandmark { display: flex; align-items: baseline; gap: 10px; }
+.brandmark b { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: .01em; }
+.brandmark span { font-size: 12px; opacity: .75; }
+nav.tabs { display: flex; gap: 4px; }
+nav.tabs button { background: transparent; border: 0; color: var(--brand-ink); opacity: .78; padding: 6px 10px;
+  border-radius: 6px; cursor: pointer; font-weight: 500; }
+nav.tabs button[aria-current="page"] { opacity: 1; background: rgba(255, 255, 255, .16); }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12.5px; }
+.clock { font-family: var(--font-data); background: rgba(255, 255, 255, .12); border-radius: 6px; padding: 3px 8px; }
+.me { display: flex; align-items: center; gap: 8px; }
+.me .role-pill { background: rgba(255, 255, 255, .18); border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+#signout { background: transparent; border: 1px solid rgba(255, 255, 255, .45); color: var(--brand-ink); border-radius: 6px;
+  padding: 3px 9px; cursor: pointer; }
+.banner { background: var(--med-soft); color: var(--ink); border-bottom: 1px solid var(--line); font-size: 13px; padding-block: 7px; }
+
+/* ---------- dashboard */
+main { padding-block: 16px 40px; display: grid; gap: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; }
+.tile b { font-family: var(--font-display); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.tile span { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.tile.warn b { color: var(--crit); } .tile.ai b { color: var(--ai); }
+.board { display: grid; grid-template-columns: 290px minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.panel-head h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+.panel-head small { color: var(--faint); font-size: 12px; }
+
+.res { border: 1px solid var(--line); border-radius: 8px; padding: 10px 10px 10px 13px; display: grid; gap: 6px;
+       position: relative; background: var(--panel); }
+.res + .res { margin-top: 8px; }
+.res::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--ok); }
+.res.faulted::before { background: var(--crit); } .res.degraded::before { background: var(--ai); }
+.res.faulted { background: var(--crit-soft); }
+.res.faulted.degraded { background: var(--ai-soft); }
+.res-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.res-name { font-family: var(--font-data); font-weight: 600; font-size: 12.5px; overflow-wrap: anywhere; }
+.res-state { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ok); white-space: nowrap; }
+.res.faulted .res-state { color: var(--crit); } .res.degraded .res-state { color: var(--ai); }
+.res-mid { display: flex; align-items: center; gap: 10px; }
+.res-val { font-family: var(--font-data); font-size: 13px; font-variant-numeric: tabular-nums; min-width: 82px; }
+.res-val small { color: var(--muted); }
+.res-meta { font-size: 11.5px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.res-meta .score.flag { color: var(--ai); font-weight: 600; }
+.res-btns { display: flex; gap: 6px; }
+svg.spark { flex: 1; height: 30px; min-width: 0; overflow: visible; }
+svg.spark path.line { fill: none; stroke: var(--brand); stroke-width: 1.5; }
+:root[data-theme="dark"] svg.spark path.line { stroke: var(--low); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) svg.spark path.line { stroke: var(--low); } }
+svg.spark path.area { fill: var(--brand-soft); stroke: none; }
+svg.spark circle { fill: var(--brand); }
+.res.faulted svg.spark path.line { stroke: var(--crit); } .res.faulted svg.spark circle { fill: var(--crit); }
+.res.degraded svg.spark path.line { stroke: var(--ai); } .res.degraded svg.spark circle { fill: var(--ai); }
+
+.filters { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto; gap: 8px; margin-bottom: 12px; align-items: end; }
+.filters label.check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; padding-bottom: 7px; }
+.filters label.check input { width: auto; }
+.inc { border: 1px solid var(--line); border-left: 4px solid var(--line-strong); border-radius: 8px; padding: 12px 14px;
+       display: grid; gap: 9px; background: var(--panel); cursor: pointer; }
+.inc + .inc { margin-top: 10px; }
+.inc:hover { border-color: var(--line-strong); }
+.inc.s-Critical { border-left-color: var(--crit); } .inc.s-High { border-left-color: var(--high); }
+.inc.s-Medium { border-left-color: var(--med); } .inc.s-Low { border-left-color: var(--low); }
+.inc.closed { opacity: .72; }
+.inc-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.inc-id { font-family: var(--font-data); font-weight: 600; font-size: 13.5px; margin-right: 2px; }
+.inc-what { font-size: 13px; color: var(--muted); }
+.inc-what b { color: var(--ink); font-family: var(--font-data); font-weight: 500; }
+.inc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; font-size: 12.5px; }
+.inc-grid span.lbl { display: block; color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.cd { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.cd.late, .left.late { color: var(--crit); font-weight: 600; } .cd.soon, .left.soon { color: var(--high); } .cd.met, .left.met { color: var(--ok); }
+.inc-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.inc-foot small { color: var(--faint); font-size: 12px; }
+.empty { text-align: center; color: var(--muted); padding: 34px 10px; border: 1px dashed var(--line-strong); border-radius: 8px; }
+.empty b { display: block; color: var(--ink); margin-bottom: 4px; font-weight: 600; }
+
+#log { font-family: var(--font-data); font-size: 11.5px; line-height: 1.5; background: var(--term-bg); color: var(--term-ink);
+       border-radius: 8px; padding: 10px; max-height: 560px; min-height: 220px; overflow-y: auto; overflow-wrap: anywhere; }
+#log .t { color: #7d8aa0; } .st { font-weight: 600; }
+.st-MONITOR { color: #7cc4ff; } .st-INCIDENT { color: #ffd479; } .st-NOTIFY { color: #9be59b; } .st-AUDIT { color: #d6b4ff; }
+.st-SLA { color: #ff8a80; } .st-AI { color: #c9a8ff; } .st-SIM, .st-CLOCK { color: #9aa6b8; }
+
+/* ---------- drawer, modal, toast */
+.scrim { position: fixed; inset: 0; background: rgba(8, 15, 28, .38); z-index: 40; }
+#detail { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100%); background: var(--panel); z-index: 41;
+  box-shadow: var(--shadow); display: grid; grid-template-rows: auto 1fr; padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.d-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.d-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.d-title h2 { font-family: var(--font-data); font-size: 18px; }
+#detail-close { margin-left: auto; }
+.d-body { overflow-y: auto; padding: 16px 18px 28px; display: grid; gap: 18px; align-content: start; }
+.d-sec { display: grid; gap: 8px; }
+.d-sec h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+dl.kv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; margin: 0; }
+dl.kv dt { font-size: 10.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+dl.kv dd { margin: 2px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.meter { display: grid; gap: 4px; }
+.meter-top { display: flex; justify-content: space-between; font-size: 12.5px; gap: 8px; }
+.bar { height: 7px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--ok); }
+.bar i.soon { background: var(--high); } .bar i.late { background: var(--crit); }
+.ai-box { border: 1px solid var(--ai); background: var(--ai-soft); border-radius: 8px; padding: 12px; display: grid; gap: 8px; font-size: 13px; }
+.ai-box .gauge { position: relative; height: 10px; background: var(--panel); border-radius: 999px; border: 1px solid var(--line); }
+.ai-box .gauge i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ai); border-radius: 999px; }
+.ai-box .gauge u { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.note { border-left: 3px solid var(--line-strong); padding: 2px 0 2px 10px; font-size: 13px; }
+.note small { color: var(--muted); display: block; font-size: 11.5px; }
+ol.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+ol.timeline li { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12.5px; align-items: baseline; }
+ol.timeline li:first-child { border-top: 0; }
+ol.timeline .who { color: var(--muted); font-size: 11.5px; }
+ol.timeline .hash { font-family: var(--font-data); font-size: 10.5px; color: var(--faint); }
+.resolution { border: 1px solid var(--ok); background: var(--ok-soft); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+
+#resolve { position: fixed; inset: 0; display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal { width: min(520px, 100%); background: var(--panel); border-radius: 12px; box-shadow: var(--shadow); padding: 20px; display: grid; gap: 14px;
+         position: relative; z-index: 51; max-height: 100%; overflow-y: auto; }
+.modal h2 { font-family: var(--font-display); font-size: 22px; }
+.modal p { margin: 0; color: var(--muted); font-size: 13px; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.count { font-size: 11.5px; color: var(--faint); text-align: right; }
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 60;
+  background: var(--ink); color: var(--panel); padding: 9px 16px; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+#toast.bad { background: var(--crit); color: #fff; }
+
+/* ---------- AI and admin views */
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.prose { max-width: 70ch; color: var(--ink); font-size: 13.5px; }
+.prose p { margin: 0 0 8px; }
+ol.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13px; }
+.ai-card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; min-width: 0; background: var(--panel); }
+.ai-card.flag { border-color: var(--ai); }
+.ai-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ai-card svg { width: 100%; height: 90px; display: block; }
+.ai-card svg .grid { stroke: var(--line); stroke-width: 1; }
+.ai-card svg .band { fill: var(--ok-soft); }
+.ai-card svg .val { fill: none; stroke: var(--brand); stroke-width: 1.6; }
+:root[data-theme="dark"] .ai-card svg .val { stroke: var(--low); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ai-card svg .val { stroke: var(--low); } }
+.ai-card svg .sc { fill: none; stroke: var(--ai); stroke-width: 1.6; }
+.ai-card svg .thr { stroke: var(--crit); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.chart { position: relative; }
+.chart span { position: absolute; right: 4px; font: 10px var(--font-data); color: var(--muted); background: var(--panel); padding: 0 3px; border-radius: 3px; }
+.chart .hi { top: 0; } .chart .lo { bottom: 0; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
+.legend i { display: inline-block; width: 18px; height: 0; vertical-align: middle; margin-right: 5px; border-top: 2px solid; }
+.legend .l-val { border-color: var(--brand); } .legend .l-sc { border-color: var(--ai); }
+.legend .l-thr { border-top: 2px dashed var(--crit); } .legend .l-band { border-top: 8px solid var(--ok-soft); }
+.ai-card .cap { font-size: 11.5px; color: var(--muted); }
+table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700;
+  padding: 6px 8px; border-bottom: 1px solid var(--line-strong); }
+table.tbl td { padding: 7px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.tbl-wrap { overflow-x: auto; }
+.yes { color: var(--ok); font-weight: 600; } .no { color: var(--faint); }
+form.grid-form { display: grid; gap: 10px; }
+.row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+#form-msg { font-size: 12.5px; min-height: 18px; }
+#form-msg.err { color: var(--crit); } #form-msg.ok { color: var(--ok); }
+.foot { color: var(--faint); font-size: 12px; padding-block: 0 24px; }
+
+@media (max-width: 1200px) { .board { grid-template-columns: 260px minmax(0, 1fr); } .board > .stream { grid-column: 1 / -1; } }
+@media (max-width: 860px) {
+  .board, .two { grid-template-columns: minmax(0, 1fr); }
+  .board > .queue { order: -1; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .topbar { position: static; }
+  .topbar-in { gap: 8px 12px; padding-block: 8px; }
+  .brandmark span, #me-name { display: none; }
+  nav.tabs { order: 3; width: 100%; overflow-x: auto; }
+  .topbar-right { gap: 8px; }
+  .three { grid-template-columns: minmax(0, 1fr); }
+  .filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .filters .q { grid-column: 1 / -1; }
+  .inc-grid, dl.kv { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #detail { animation: slide .18s ease-out; } @keyframes slide { from { transform: translateX(24px); opacity: .6; } }
+}
+</style>
+
+<!-- ======================================================== sign in -->
+<section id="view-login" class="wrap" aria-labelledby="login-title">
+  <div class="login">
+    <div class="login-head">
+      <p class="eyebrow">Cloud Incident Response and Infrastructure Monitoring Platform</p>
+      <h1 id="login-title">Sign in to the operations console</h1>
+      <p>Choose who you are signing in as. Each role sees the same incidents but may act on them differently, exactly as the role-based access rules allow.</p>
+    </div>
+    <div class="users" id="users" role="group" aria-label="Demo users"></div>
+    <div class="login-foot">
+      <small id="mode-note">Connecting…</small>
+      <button class="btn primary" id="signin" disabled>Sign in</button>
+    </div>
+    <p id="login-err" class="err" role="alert"></p>
+  </div>
+</section>
+
+<!-- ======================================================== app -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="topbar-in wrap">
+      <div class="brandmark"><b>CIRP Console</b><span>Incident Management</span></div>
+      <nav class="tabs" aria-label="Screens">
+        <button id="nav-dashboard" data-view="dashboard" aria-current="page">Incidents</button>
+        <button id="nav-ai" data-view="ai">AI detection</button>
+        <button id="nav-admin" data-view="admin">Administration</button>
+      </nav>
+      <div class="topbar-right">
+        <span class="clock" title="Simulated platform clock"><span id="m-clock">--:--:--</span></span>
+        <span class="me"><b id="me-name">-</b><span class="role-pill" id="me-role">-</span></span>
+        <button id="signout">Sign out</button>
+      </div>
+    </div>
+  </header>
+  <div class="banner wrap" id="viewer-banner" hidden>Read-only access. Viewers can inspect incidents, timelines and audit trails but cannot change them.</div>
+
+  <!-- ---------------------------------------------------- dashboard -->
+  <main id="view-dashboard" class="wrap">
+    <div class="tiles" aria-label="Summary">
+      <div class="tile"><b id="m-healthy">-</b><span>Resources</span></div>
+      <div class="tile"><b id="m-open">0</b><span>Open incidents</span></div>
+      <div class="tile" id="t-breached"><b id="m-breached">0</b><span>SLA breached</span></div>
+      <div class="tile ai"><b id="m-ai">0</b><span>AI-detected</span></div>
+      <div class="tile"><b id="m-mttr">—</b><span>MTTR (min)</span></div>
+    </div>
+    <div class="board">
+      <section class="panel" aria-labelledby="h-estate">
+        <div class="panel-head"><h2 id="h-estate">Monitored infrastructure</h2><small>live telemetry</small></div>
+        <div id="resources"></div>
+      </section>
+      <section class="panel queue" aria-labelledby="h-queue">
+        <div class="panel-head"><h2 id="h-queue">Incident queue</h2><small id="queue-count"></small></div>
+        <div class="filters">
+          <label class="field q">Search<input id="q" type="search" placeholder="ID, resource or anomaly" autocomplete="off"></label>
+          <label class="field">Severity<select id="f-sev"><option value="">All</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select></label>
+          <label class="field">Status<select id="f-status"><option value="">All</option><option value="open">Open</option><option value="done">Resolved or closed</option></select></label>
+          <label class="field">Raised by<select id="f-source"><option value="">All</option><option value="rule">Rule engine</option><option value="ai">AI detector</option><option value="manual">Manual</option></select></label>
+          <label class="check" id="mine-wrap" hidden><input type="checkbox" id="f-mine">Mine only</label>
+        </div>
+        <div id="queue"></div>
+      </section>
+      <section class="panel stream" aria-labelledby="h-log">
+        <div class="panel-head"><h2 id="h-log">Event and audit stream</h2><small>newest at the bottom</small></div>
+        <div id="log" role="log" aria-live="off"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ---------------------------------------------------- AI detection -->
+  <main id="view-ai" class="wrap" hidden>
+    <div class="two">
+      <section class="panel">
+        <div class="panel-head"><h2>How the AI detector works</h2><small>Isolation Forest</small></div>
+        <div class="prose">
+          <p>Detection rules only fire when a metric crosses a fixed threshold, and those thresholds sit far above normal so that noise never trips them. A resource can therefore be clearly unhealthy without any rule firing. The AI detector learns what normal looks like for each resource and flags readings that do not fit.</p>
+          <ol class="steps">
+            <li>Normalise the last 5 readings with the resource's learned mean and spread.</li>
+            <li>Build three features: the current level, the window median and the window minimum.</li>
+            <li>Score them with an Isolation Forest of 100 trees trained only on healthy telemetry.</li>
+            <li>Raise an incident when the score stays above the threshold for <span id="ai-streak">4</span> readings in a row and no rule has already raised one.</li>
+          </ol>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Detector status</h2><small id="ai-mode"></small></div>
+        <div class="tiles" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+          <div class="tile"><b id="ai-thr" class="num">-</b><span>Score threshold</span></div>
+          <div class="tile"><b id="ai-scored" class="num">0</b><span>Readings scored</span></div>
+          <div class="tile ai"><b id="ai-flagged" class="num">0</b><span>Readings flagged</span></div>
+          <div class="tile ai"><b id="ai-incidents" class="num">0</b><span>Incidents raised</span></div>
+        </div>
+        <p class="prose" style="margin-top:10px;color:var(--muted)">Measured on 25 hours of unseen healthy telemetry the detector raised no false incidents, and it raised every gradual degradation, none of which the rule engine detected.</p>
+      </section>
+    </div>
+    <section class="panel">
+      <div class="panel-head"><h2>Per-resource view</h2><small>last 40 readings, updated live</small></div>
+      <div class="legend"><span><i class="l-val"></i>Telemetry</span><span><i class="l-band"></i>Learned normal range</span>
+        <span><i class="l-sc"></i>Anomaly score</span><span><i class="l-thr"></i>Rule threshold (top) and AI threshold (bottom)</span></div>
+      <div class="three" id="ai-cards"></div>
+    </section>
+  </main>
+
+  <!-- ---------------------------------------------------- administration -->
+  <main id="view-admin" class="wrap" hidden>
+    <div class="two">
+      <section class="panel">
+        <div class="panel-head"><h2>Submit a detection event</h2><small>for manual testing</small></div>
+        <form id="event-form" class="grid-form" novalidate>
+          <div class="row2">
+            <label class="field">Resource ID<input name="resource_id" id="f-resource" value="vm-app-03" autocomplete="off"></label>
+            <label class="field">Anomaly type<input name="anomaly_type" id="f-anomaly" value="HIGH_CPU" autocomplete="off"></label>
+          </div>
+          <div class="row2">
+            <label class="field">Observed value<input name="observed_value" id="f-value" type="number" step="any" value="97.2"></label>
+            <label class="field">Severity<select name="severity" id="f-severity"><option>Critical</option><option>High</option><option selected>Medium</option><option>Low</option></select></label>
+          </div>
+          <div><button type="submit" class="btn" id="f-submit">Submit detection event</button></div>
+          <div id="form-msg" role="status"></div>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Simulation controls</h2><small>test environment only</small></div>
+        <div class="grid-form">
+          <div class="row2">
+            <label class="field">Advance simulated clock (minutes)<input id="clock-min" type="number" value="15" min="0" step="any"></label>
+            <div style="align-self:end"><button class="btn" id="clock-btn">Advance clock</button></div>
+          </div>
+          <p class="prose" style="margin:0;color:var(--muted)">Advancing the clock lets SLA deadlines pass without waiting. Reset clears every incident and fault and restores the seed data.</p>
+          <div><button class="btn danger" id="reset">Reset console</button></div>
+        </div>
+      </section>
+    </div>
+    <div class="two">
+      <section class="panel">
+        <div class="panel-head"><h2>SLA policy</h2><small>minutes from creation</small></div>
+        <div class="tbl-wrap"><table class="tbl" id="tbl-sla"></table></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Engineer workload</h2><small>least-loaded routing</small></div>
+        <div class="tbl-wrap"><table class="tbl" id="tbl-eng"></table></div>
+      </section>
+    </div>
+    <section class="panel">
+      <div class="panel-head"><h2>Detection rules</h2><small>rule fires after 2 consecutive readings above threshold</small></div>
+      <div class="tbl-wrap"><table class="tbl" id="tbl-rules"></table></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Roles and permissions</h2><small>enforced by the server on every request</small></div>
+      <div class="tbl-wrap"><table class="tbl" id="tbl-roles"></table></div>
+    </section>
+  </main>
+  <p class="foot wrap" id="foot"></p>
+</div>
+
+<!-- ======================================================== detail drawer -->
+<div class="scrim" id="detail-scrim" hidden></div>
+<aside id="detail" hidden aria-labelledby="d-id" role="dialog" aria-modal="true">
+  <div class="d-head">
+    <div class="d-title"><h2 id="d-id">INC</h2><span id="d-chips" class="d-title"></span>
+      <button class="btn small" id="detail-close" aria-label="Close incident details">Close</button></div>
+    <div class="inc-what" id="d-what"></div>
+  </div>
+  <div class="d-body">
+    <div id="d-main" class="d-body" style="padding:0;overflow:visible"></div>
+    <section class="d-sec" id="d-notes-sec">
+      <h3>Diagnostic notes</h3>
+      <div id="d-notes"></div>
+      <form id="note-form" class="grid-form" novalidate>
+        <label class="field">Add a note<textarea id="note-text" maxlength="1000" placeholder="What you checked, what you found, what you tried"></textarea></label>
+        <div class="err" id="note-err"></div>
+        <div><button class="btn" id="note-add" type="submit">Add note</button></div>
+      </form>
+    </section>
+    <section class="d-sec"><h3>Timeline and audit trail</h3><ol class="timeline" id="d-timeline"></ol></section>
+  </div>
+</aside>
+
+<!-- ======================================================== resolve modal -->
+<div id="resolve" hidden role="dialog" aria-modal="true" aria-labelledby="r-title">
+  <div class="scrim" id="resolve-scrim"></div>
+  <form class="modal" id="resolve-form" novalidate>
+    <div>
+      <p class="eyebrow">Resolve incident</p>
+      <h2 id="r-title">Resolve</h2>
+    </div>
+    <p id="r-summary"></p>
+    <label class="field">Root cause category
+      <select id="r-cat"><option value="">Choose a category</option></select></label>
+    <div class="err" id="r-cat-err"></div>
+    <label class="field">What fixed it
+      <textarea id="r-fix" maxlength="1000" placeholder="For example: rolled back config change 4812 on api-payments; latency back to 120 ms"></textarea></label>
+    <div class="count" id="r-fix-count">0 / 1000</div>
+    <div class="err" id="r-fix-err"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn" id="r-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="r-submit">Resolve incident</button>
+    </div>
+  </form>
+</div>
+
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="engine.js"></script>
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (x) => (x === null || x === undefined ? "—" : String(Number(Number(x).toPrecision(5))));
+const ROLE_HELP = {
+  "Administrator": "Full access, simulation tools and configuration",
+  "Incident Manager": "Escalates, closes and reopens any incident",
+  "Engineer": "Works the incidents assigned to them",
+  "Viewer": "Read-only access for audit and compliance",
+};
+const SEV_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+
+// ---------------------------------------------------------------- backends
+class RemoteBackend {
+  constructor() { this.mode = "python"; }
+  async request(method, path, body, user) {
+    const r = await fetch(path, { method, headers: { "Content-Type": "application/json", ...(user ? { "X-User": user } : {}) },
+      body: method === "POST" ? JSON.stringify(body || {}) : undefined });
+    let data = {};
+    try { data = await r.json(); } catch (e) { data = { error: "invalid response" }; }
+    return { ok: r.ok, status: r.status, data };
+  }
+}
+async function connect() {
+  try {
+    const r = await fetch("/api/users", { cache: "no-store" });
+    if (r.ok && (r.headers.get("content-type") || "").includes("json")) return new RemoteBackend();
+  } catch (e) { /* no server: fall through to the in-browser engine */ }
+  const model = await (await fetch("model.json")).json();
+  return new window.CIRPEngine.LocalBackend(model);
+}
+
+// ---------------------------------------------------------------- state
+const app = { backend: null, user: null, S: null, fetchedAt: 0, view: "dashboard", detail: null,
+              resolving: null, keys: {}, filters: { q: "", sev: "", status: "", source: "", mine: false } };
+const store = {
+  get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { v === null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) { /* storage blocked */ } },
+};
+const api = (method, path, body) => app.backend.request(method, path, body, app.user);
+
+function toast(msg, bad = false) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = bad ? "bad" : ""; t.hidden = false;
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2600);
+}
+
+// ---------------------------------------------------------------- sign in
+async function showLogin() {
+  $("#app").hidden = true; $("#view-login").hidden = false;
+  const r = await api("GET", "/api/users");
+  const users = r.data;
+  $("#users").innerHTML = users.map((u) => `
+    <button type="button" class="user-card" data-user="${esc(u.id)}" aria-pressed="false">
+      <span class="role">${esc(u.role)}</span><b>${esc(u.name)}</b><small>${esc(ROLE_HELP[u.role])}</small>
+    </button>`).join("");
+  $("#mode-note").textContent = app.backend.mode === "python"
+    ? "Connected to the Python backend (console/server.py)."
+    : "Standalone mode: the platform runs in your browser, no install needed.";
+  const last = store.get("cirp-user");
+  if (last && users.some((u) => u.id === last)) pick(last);
+}
+function pick(id) {
+  $$(".user-card").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.user === id)));
+  $("#signin").disabled = false; $("#signin").dataset.user = id;
+}
+async function signIn(id) {
+  app.user = id; store.set("cirp-user", id);
+  const r = await api("GET", "/api/state");
+  if (!r.ok) { $("#login-err").textContent = r.data.error || "Sign-in failed"; app.user = null; return; }
+  $("#view-login").hidden = true; $("#app").hidden = false;
+  app.keys = {}; $("#resources").innerHTML = "";
+  render(r.data);
+  setView(store.get("cirp-view") || "dashboard");
+  window.scrollTo(0, 0);
+}
+function signOut() { app.user = null; app.S = null; store.set("cirp-user", null); closeDetail(); showLogin(); }
+
+// ---------------------------------------------------------------- views
+function setView(v) {
+  if (v === "admin" && app.S && app.S.me.role !== "Administrator") v = "dashboard";
+  app.view = v; store.set("cirp-view", v);
+  for (const name of ["dashboard", "ai", "admin"]) {
+    $(`#view-${name}`).hidden = name !== v;
+    const b = $(`#nav-${name}`);
+    if (name === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  }
+  app.keys = {}; if (app.S) render(app.S);
+  window.scrollTo(0, 0);
+}
+
+// ---------------------------------------------------------------- polling
+async function refresh() {
+  if (!app.user) return;
+  try {
+    const r = await api("GET", "/api/state");
+    if (r.status === 401) return signOut();
+    if (r.ok) render(r.data);
+  } catch (e) { /* server restarting; try again on the next poll */ }
+}
+const serverNow = () => (app.S ? Date.parse(app.S.now) + (performance.now() - app.fetchedAt) : Date.now());
+function changed(name, value) {
+  const k = JSON.stringify(value);
+  if (app.keys[name] === k) return false;
+  app.keys[name] = k; return true;
+}
+
+function render(S) {
+  app.S = S; app.fetchedAt = performance.now();
+  const me = S.me, admin = me.role === "Administrator";
+  $("#me-name").textContent = me.name; $("#me-role").textContent = me.role;
+  $("#nav-admin").hidden = !admin;
+  $("#viewer-banner").hidden = me.role !== "Viewer";
+  $("#mine-wrap").hidden = me.role !== "Engineer";
+  $("#m-clock").textContent = S.now.slice(11, 19);
+  $("#foot").textContent = app.backend.mode === "python"
+    ? "Backend: Python (console/server.py) with the real IncidentService and the scikit-learn Isolation Forest."
+    : "Standalone mode: running the in-browser port of the backend (engine.js) with the exported Isolation Forest (model.json).";
+  if (app.view === "dashboard") renderDashboard(S);
+  if (app.view === "ai") renderAI(S);
+  if (app.view === "admin") renderAdmin(S);
+  if (app.detail) renderDetail(S);
+  tickCountdowns();
+}
+
+// ---------------------------------------------------------------- dashboard
+function renderDashboard(S) {
+  const m = S.metrics;
+  $("#m-healthy").textContent = `${m.healthy} healthy`;
+  $("#m-open").textContent = m.open;
+  $("#m-breached").textContent = m.breached;
+  $("#t-breached").classList.toggle("warn", m.breached > 0);
+  $("#m-ai").textContent = m.ai;
+  $("#m-mttr").textContent = m.mttr === null ? "—" : m.mttr.toFixed(2);
+  renderResources(S);
+  renderQueue(S);
+  renderLog(S);
+}
+
+function sparkPath(values, w = 120, h = 30) {
+  if (values.length < 2) return { line: "", area: "", end: null };
+  const lo = Math.min(...values), hi = Math.max(...values), span = hi - lo || 1;
+  const pts = values.map((v, i) => [i * w / (values.length - 1), h - 2 - (v - lo) / span * (h - 4)]);
+  const line = "M" + pts.map((p) => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L");
+  return { line, area: `${line} L${w} ${h} L0 ${h} Z`, end: pts[pts.length - 1] };
+}
+
+function renderResources(S) {
+  const box = $("#resources"), admin = S.me.role === "Administrator";
+  for (const r of S.resources) {
+    let card = box.querySelector(`.res[data-id="${CSS.escape(r.id)}"]`);
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "res"; card.dataset.id = r.id;
+      card.innerHTML = `
+        <div class="res-top"><span class="res-name">${esc(r.id)}</span><span class="res-state">healthy</span></div>
+        <div class="res-meta">${esc(r.type)} · ${esc(r.metric)}</div>
+        <div class="res-mid"><span class="res-val"></span>
+          <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true">
+            <path class="area"></path><path class="line"></path><circle r="2.2" cx="-9" cy="-9"></circle></svg></div>
+        <div class="res-meta"><span>rule &gt; ${fmt(r.threshold)} ${esc(r.unit)}</span><span class="score"></span></div>
+        <div class="res-btns" ${admin ? "" : "hidden"}>
+          <button class="btn small res-btn" data-res="${esc(r.id)}" data-kind="outage">Force outage</button>
+          <button class="btn small ai res-btn-subtle" data-res="${esc(r.id)}" data-kind="subtle">Degrade</button></div>`;
+      box.appendChild(card);
+    }
+    const state = r.fault === "outage" ? "faulted" : r.fault === "subtle" ? "degraded" : "";
+    card.classList.toggle("faulted", r.faulted);         // any injected fault: the resource is not healthy
+    card.classList.toggle("degraded", state === "degraded");
+    card.querySelector(".res-state").textContent = r.fault === "outage" ? "outage" : r.fault === "subtle" ? "degrading" : "healthy";
+    const last = r.history[r.history.length - 1];
+    card.querySelector(".res-val").innerHTML = last === undefined ? "—" : `${fmt(last)} <small>${esc(r.unit)}</small>`;
+    const p = sparkPath(r.history);
+    card.querySelector("path.line").setAttribute("d", p.line);
+    card.querySelector("path.area").setAttribute("d", p.area);
+    if (p.end) { const c = card.querySelector("circle"); c.setAttribute("cx", p.end[0]); c.setAttribute("cy", p.end[1]); }
+    const sc = card.querySelector(".score");
+    sc.textContent = r.score === null ? "AI warming up" : `AI score ${r.score.toFixed(2)}`;
+    sc.classList.toggle("flag", r.ai_flag);
+    card.querySelector(".res-btns").hidden = !admin;
+    for (const b of card.querySelectorAll("button")) b.disabled = r.faulted;
+  }
+}
+
+function filtered(S) {
+  const f = app.filters, q = f.q.trim().toLowerCase();
+  return S.incidents.filter((i) =>
+    (!q || [i.id, i.resource, i.anomaly].some((x) => x.toLowerCase().includes(q))) &&
+    (!f.sev || i.severity === f.sev) &&
+    (!f.status || (f.status === "open" ? i.open : !i.open)) &&
+    (!f.source || i.source === f.source) &&
+    (!f.mine || i.assignee === S.me.name))
+    .sort((a, b) => (b.open - a.open) || (SEV_RANK[a.severity] - SEV_RANK[b.severity]) || (a.id < b.id ? 1 : -1));
+}
+
+function renderQueue(S) {
+  const list = filtered(S);
+  const key = { list: list.map((i) => [i.id, i.status, i.assignee, i.breached, i.action, i.source, i.events, i.acknowledged]), all: S.incidents.length, role: S.me.id };
+  if (!changed("queue", key)) return;
+  $("#queue-count").textContent = S.incidents.length ? `${list.length} of ${S.incidents.length} shown` : "";
+  const q = $("#queue");
+  if (!S.incidents.length) {
+    q.innerHTML = `<div class="empty"><b id="queue-empty">No open incidents</b>Inject a fault from the infrastructure panel, or wait for the detectors to raise one.</div>`;
+    return;
+  }
+  if (!list.length) { q.innerHTML = `<div class="empty"><b>No incidents match the filters</b>Clear the search or change a filter to see more.</div>`; return; }
+  q.innerHTML = list.map((i) => `
+    <article class="inc s-${esc(i.severity)} ${i.open ? "" : "closed"}" data-id="${esc(i.id)}" tabindex="0" aria-label="${esc(i.id)} ${esc(i.severity)} ${esc(i.status)}">
+      <div class="inc-top">
+        <span class="inc-id">${esc(i.id)}</span>
+        <span class="chip sev-${esc(i.severity)} inc-sev">${esc(i.severity)}</span>
+        <span class="chip status inc-status">${esc(i.status)}</span>
+        ${i.source === "ai" ? `<span class="chip ai inc-ai" title="Raised by the AI anomaly detector">AI-detected</span>` : ""}
+        ${i.breached ? `<span class="chip breach">SLA breached</span>` : ""}
+      </div>
+      <div class="inc-what"><b>${esc(i.resource)}</b> · ${esc(i.anomaly)}${i.events > 1 ? ` · ${i.events} linked events` : ""}</div>
+      <div class="inc-grid">
+        <div><span class="lbl">Assignee</span><b class="inc-assignee">${esc(i.assignee || "Unassigned")}</b></div>
+        <div><span class="lbl">Respond by</span><span class="cd" data-due="${esc(i.response_due)}" data-done="${i.acknowledged || !i.open}"></span></div>
+        <div><span class="lbl">Resolve by</span><span class="cd" data-due="${esc(i.resolution_due)}" data-done="${!i.open}" data-breached="${i.breached}"></span></div>
+      </div>
+      <div class="inc-foot">
+        <small>Created ${esc(i.created.slice(11))} · open for details</small>
+        ${i.action ? `<button class="btn primary inc-action" data-inc="${esc(i.id)}" data-to="${esc(i.action.to)}">${esc(i.action.label)}</button>` : ""}
+      </div>
+    </article>`).join("");
+}
+
+function renderLog(S) {
+  if (!changed("log", S.log.length ? [S.log.length, S.log[S.log.length - 1]] : 0)) return;
+  const log = $("#log");
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  log.innerHTML = S.log.map((l) => `<div><span class="t">${esc(l.t)}</span> <span class="st st-${esc(l.stage)}">${esc(l.stage.padEnd(8))}</span> ${esc(l.msg)}</div>`).join("")
+    || `<div class="t">Waiting for telemetry…</div>`;
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+
+function countdown(dueIso) {
+  const ms = Date.parse(dueIso) - serverNow();
+  const a = Math.abs(ms), h = Math.floor(a / 3600000), m = Math.floor(a % 3600000 / 60000), s = Math.floor(a % 60000 / 1000);
+  const txt = (h ? `${h}h ` : "") + `${String(m).padStart(h ? 2 : 1, "0")}m ${String(s).padStart(2, "0")}s`;
+  return { ms, txt };
+}
+function tickCountdowns() {
+  for (const el of $$(".cd[data-due]")) {
+    if (el.dataset.done === "true") { el.textContent = el.dataset.breached === "true" ? "Missed" : "Met"; el.className = "cd " + (el.dataset.breached === "true" ? "late" : "met"); continue; }
+    const c = countdown(el.dataset.due);
+    el.textContent = c.ms < 0 ? `overdue ${c.txt}` : c.txt;
+    el.className = "cd " + (c.ms < 0 ? "late" : c.ms < 300000 ? "soon" : "");
+  }
+  for (const el of $$(".meter[data-due]")) {
+    const start = Date.parse(el.dataset.start), due = Date.parse(el.dataset.due), done = el.dataset.done === "true";
+    const frac = done ? 1 : Math.min(1, Math.max(0, (serverNow() - start) / (due - start)));
+    const bar = el.querySelector(".bar i");
+    bar.style.width = `${(frac * 100).toFixed(1)}%`;
+    bar.className = done ? "" : frac >= 1 ? "late" : frac > .75 ? "soon" : "";
+    const c = countdown(el.dataset.due);
+    const left = el.querySelector(".left");
+    left.className = "left mono " + (done ? (el.dataset.breached === "true" ? "late" : "met") : frac >= 1 ? "late" : frac > .75 ? "soon" : "");
+    left.textContent = done ? (el.dataset.breached === "true" ? "Missed" : "Met")
+      : c.ms < 0 ? `overdue by ${c.txt}` : `${c.txt} left`;
+  }
+}
+
+// ---------------------------------------------------------------- detail drawer
+function openDetail(id) {
+  app.detail = id; app.keys.detail = null;
+  $("#detail").hidden = false; $("#detail-scrim").hidden = false;
+  $("#note-text").value = ""; $("#note-err").textContent = "";
+  renderDetail(app.S);
+  $("#detail-close").focus();
+}
+function closeDetail() {
+  if (!app.detail) return;
+  const id = app.detail;
+  app.detail = null; $("#detail").hidden = true; $("#detail-scrim").hidden = true;
+  const card = $(`.inc[data-id="${CSS.escape(id)}"]`); if (card) card.focus();
+}
+function meter(label, start, due, done, breached) {
+  return `<div class="meter" data-start="${esc(start)}" data-due="${esc(due)}" data-done="${done}" data-breached="${breached}">
+    <div class="meter-top"><span>${label} <span class="mono" style="color:var(--muted)">by ${esc(due.slice(11))}</span></span><span class="left mono"></span></div>
+    <div class="bar"><i></i></div></div>`;
+}
+function renderDetail(S) {
+  const i = S.incidents.find((x) => x.id === app.detail);
+  if (!i) return closeDetail();
+  if (!changed("detail", i)) return;
+  $("#d-id").textContent = i.id;
+  $("#d-chips").innerHTML = `<span class="chip sev-${esc(i.severity)}">${esc(i.severity)}</span><span class="chip status">${esc(i.status)}</span>` +
+    (i.source === "ai" ? `<span class="chip ai">AI-detected</span>` : "") + (i.breached ? `<span class="chip breach">SLA breached</span>` : "");
+  $("#d-what").innerHTML = `<b>${esc(i.resource)}</b> · ${esc(i.anomaly)}`;
+  const ai = i.ai ? `
+    <section class="d-sec"><h3>Why the AI raised this</h3>
+      <div class="ai-box">
+        <div>Anomaly score <b class="mono">${i.ai.score.toFixed(3)}</b> against a threshold of <b class="mono">${i.ai.threshold.toFixed(3)}</b>.
+          The ${esc(i.ai.metric)} rule would only fire above <b class="mono">${fmt(i.ai.threshold_rule)} ${esc(i.ai.unit)}</b>, so no rule caught this.</div>
+        <div class="gauge" aria-hidden="true"><i style="width:${Math.min(100, i.ai.score * 100).toFixed(1)}%"></i><u style="left:${(i.ai.threshold * 100).toFixed(1)}%"></u></div>
+        <div style="color:var(--muted)">Reason: ${esc(i.ai.reason)}.</div>
+      </div></section>` : "";
+  const actions = i.actions.length ? i.actions.map((a) =>
+    `<button class="btn ${a.to === "Escalated" ? "danger" : a.label === (i.action && i.action.label) ? "primary" : ""} det-action" data-inc="${esc(i.id)}" data-to="${esc(a.to)}">${esc(a.label)}</button>`).join("")
+    : `<span style="color:var(--muted);font-size:13px">${S.me.role === "Viewer" ? "Read-only: no actions for your role." : i.open ? "No actions available to you on this incident." : "This incident is closed."}</span>`;
+  const resolution = i.resolution ? `<section class="d-sec"><h3>Resolution</h3><div class="resolution"><b>${esc(i.resolution.category)}</b> · resolved by ${esc(i.resolution.by)} at ${esc(i.resolution.t)}<div style="margin-top:4px">${esc(i.resolution.fix)}</div></div></section>` : "";
+  $("#d-main").innerHTML = `
+    <section class="d-sec"><h3>Summary</h3>
+      <dl class="kv">
+        <div><dt>Assignee</dt><dd>${esc(i.assignee || "Unassigned")}</dd></div>
+        <div><dt>Created</dt><dd class="mono">${esc(i.created.replace("T", " "))}</dd></div>
+        <div><dt>Raised by</dt><dd>${i.source === "ai" ? "AI anomaly detector" : i.source === "manual" ? "Administrator (manual)" : "Detection rule"}</dd></div>
+        <div><dt>Linked events</dt><dd class="num">${i.events}</dd></div>
+        <div><dt>Time to resolve</dt><dd class="num">${i.mttr === null ? "Not resolved" : `${i.mttr.toFixed(1)} min`}</dd></div>
+        <div><dt>Audit entries</dt><dd class="num">${i.audit.length}</dd></div>
+      </dl></section>
+    <section class="d-sec"><h3>Service level</h3>
+      ${meter("Respond", i.created, i.response_due, i.acknowledged || !i.open, false)}
+      ${meter("Resolve", i.created, i.resolution_due, !i.open, i.breached)}</section>
+    ${ai}
+    <section class="d-sec"><h3>Actions</h3><div class="actions">${actions}</div></section>
+    ${resolution}`;
+  $("#d-notes").innerHTML = i.notes.length ? i.notes.map((n) => `<div class="note">${esc(n.text)}<small>${esc(n.by)} · ${esc(n.t)}</small></div>`).join("")
+    : `<div style="color:var(--muted);font-size:13px">No notes yet.</div>`;
+  $("#note-form").hidden = !i.can_note;
+  $("#d-timeline").innerHTML = i.audit.slice().reverse().map((a) => `
+    <li><span class="mono">${esc(a.t)}</span>
+      <span>${esc(a.action === "STATUS_CHANGE" ? `${a.from} to ${a.to}` : a.action === "CREATED" ? "Incident created" : a.action === "EVENT_LINKED" ? "Duplicate event linked" : a.action === "SLA_BREACH" ? "Resolution SLA breached" : a.action)}
+        <span class="who">by ${esc(a.actor)}</span></span>
+      <span class="hash" title="SHA-256, chained to the previous entry">${esc(a.hash)}</span></li>`).join("");
+  tickCountdowns();
+}
+
+// ---------------------------------------------------------------- resolve form
+function openResolve(id) {
+  const i = app.S.incidents.find((x) => x.id === id);
+  app.resolving = id;
+  $("#r-title").textContent = `Resolve ${id}`;
+  $("#r-summary").textContent = `${i.resource} · ${i.anomaly} · ${i.severity}. Record the root cause and the fix; both are kept with the incident for the post-incident review.`;
+  $("#r-cat").innerHTML = `<option value="">Choose a category</option>` + app.S.root_causes.map((c) => `<option>${esc(c)}</option>`).join("");
+  $("#r-fix").value = ""; $("#r-fix-count").textContent = "0 / 1000";
+  $("#r-cat-err").textContent = ""; $("#r-fix-err").textContent = "";
+  $("#resolve").hidden = false; $("#r-cat").focus();
+}
+function closeResolve() { app.resolving = null; $("#resolve").hidden = true; }
+
+// ---------------------------------------------------------------- AI view
+function chart(values, lo, hi, opts) {
+  const W = 300, H = 90, P = 4;
+  const y = (v) => H - P - (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo || 1) * (H - 2 * P);
+  const x = (i) => (values.length > 1 ? i * W / (values.length - 1) : 0);
+  let s = `<line class="grid" x1="0" x2="${W}" y1="${y(lo)}" y2="${y(lo)}"/><line class="grid" x1="0" x2="${W}" y1="${y(hi)}" y2="${y(hi)}"/>`;
+  if (opts.band) s += `<rect class="band" x="0" width="${W}" y="${y(opts.band[1])}" height="${Math.max(0, y(opts.band[0]) - y(opts.band[1]))}"/>`;
+  if (opts.thr !== undefined && opts.thr >= lo && opts.thr <= hi) s += `<line class="thr" x1="0" x2="${W}" y1="${y(opts.thr)}" y2="${y(opts.thr)}"/>`;
+  if (values.length > 1) s += `<path class="${opts.cls}" d="M${values.map((v, i) => `${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" L")}"/>`;
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(opts.label)}">${s}</svg>` +
+    `<span class="hi">${esc(opts.hiLabel)}</span><span class="lo">${esc(opts.loLabel)}</span></div>`;
+}
+function renderAI(S) {
+  $("#ai-thr").textContent = S.ai.threshold.toFixed(3);
+  $("#ai-streak").textContent = S.ai.streak;
+  $("#ai-scored").textContent = S.ai.scored.toLocaleString();
+  $("#ai-flagged").textContent = S.ai.flagged.toLocaleString();
+  $("#ai-incidents").textContent = S.ai.incidents;
+  $("#ai-mode").textContent = app.backend.mode === "python" ? "scikit-learn model" : "exported model, in browser";
+  const admin = S.me.role === "Administrator";
+  $("#ai-cards").innerHTML = S.resources.map((r) => {
+    const vals = r.history, lo0 = Math.min(r.baseline, ...vals), hi0 = Math.max(r.baseline, ...vals);
+    const pad = (hi0 - lo0) * .15 || 1;
+    return `<div class="ai-card ${r.ai_flag ? "flag" : ""}">
+      <div class="ai-card-top"><span class="res-name">${esc(r.id)}</span>
+        ${r.ai_flag ? `<span class="chip ai">anomalous</span>` : `<span class="chip ok">normal</span>`}</div>
+      <div class="cap">${esc(r.metric)} (${esc(r.unit)}) · learned normal ${fmt(r.baseline)} · rule fires above ${fmt(r.threshold)}</div>
+      ${chart(vals, Math.max(0, lo0 - pad), hi0 + pad, { cls: "val", band: [r.baseline - 3 * (r.spread || 0), r.baseline + 3 * (r.spread || 0)], thr: r.threshold,
+        hiLabel: fmt(hi0 + pad), loLabel: fmt(Math.max(0, lo0 - pad)), label: `${r.metric} telemetry` })}
+      ${chart(r.score_history, .3, .9, { cls: "sc", thr: S.ai.threshold, hiLabel: "0.9", loLabel: "0.3", label: "anomaly score" })}
+      <div class="ai-card-top"><span class="cap">score ${r.score === null ? "warming up" : r.score.toFixed(3)} · threshold ${S.ai.threshold.toFixed(3)}</span>
+        ${admin ? `<button class="btn small ai ai-degrade" data-res="${esc(r.id)}" data-kind="subtle" ${r.faulted ? "disabled" : ""}>Degrade</button>` : ""}</div>
+    </div>`;
+  }).join("");
+}
+
+// ---------------------------------------------------------------- admin view
+function renderAdmin(S) {
+  if (changed("sla", S.sla_policy)) $("#tbl-sla").innerHTML = `<tr><th>Severity</th><th>Response</th><th>Resolution</th></tr>` +
+    S.sla_policy.map((p) => `<tr><td><span class="chip sev-${esc(p.severity)}">${esc(p.severity)}</span></td><td>${p.response} min</td><td>${p.resolution} min</td></tr>`).join("");
+  if (changed("eng", S.engineers)) $("#tbl-eng").innerHTML = `<tr><th>Engineer</th><th>Team</th><th>Open incidents</th></tr>` +
+    S.engineers.map((e) => `<tr><td>${esc(e.name)} <span class="mono" style="color:var(--faint)">${esc(e.id)}</span></td><td>${esc(e.team)}</td><td>${e.open}</td></tr>`).join("");
+  if (changed("rules", S.resources.map((r) => r.id))) $("#tbl-rules").innerHTML = `<tr><th>Resource</th><th>Metric</th><th>Anomaly class</th><th>Fires above</th><th>Learned normal</th></tr>` +
+    S.resources.map((r) => `<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.metric)}</td><td class="mono">${esc(r.anomaly)}</td><td>${fmt(r.threshold)} ${esc(r.unit)}</td><td>${fmt(r.baseline)} ${esc(r.unit)}</td></tr>`).join("");
+  if (!$("#tbl-roles").innerHTML) {
+    const rows = [["View incidents, timelines and audit trail", 1, 1, 1, 1], ["Acknowledge, start work, resolve", 1, 0, "own", 0],
+      ["Escalate", 1, 1, "own", 0], ["Close or reopen", 1, 1, 0, 0], ["Add diagnostic notes", 1, 1, "own", 0],
+      ["Inject faults, submit events, advance clock, reset", 1, 0, 0, 0]];
+    const cell = (v) => v === 1 ? `<td class="yes">Yes</td>` : v === "own" ? `<td class="yes">Own incidents</td>` : `<td class="no">No</td>`;
+    $("#tbl-roles").innerHTML = `<tr><th>Permission</th><th>Administrator</th><th>Incident Manager</th><th>Engineer</th><th>Viewer</th></tr>` +
+      rows.map((r) => `<tr><td>${r[0]}</td>${r.slice(1).map(cell).join("")}</tr>`).join("");
+  }
+}
+
+// ---------------------------------------------------------------- events
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  const card = e.target.closest(".inc");
+  if (!b && card) return openDetail(card.dataset.id);
+  if (!b) return;
+  if (b.classList.contains("user-card")) return pick(b.dataset.user);
+  if (b.id === "signin") return signIn(b.dataset.user);
+  if (b.id === "signout") return signOut();
+  if (b.dataset.view) return setView(b.dataset.view);
+  if (b.id === "detail-close") return closeDetail();
+  if (b.id === "r-cancel") return closeResolve();
+  let r = null;
+  if (b.dataset.res) {
+    r = await api("POST", "/api/fault", { resource_id: b.dataset.res, kind: b.dataset.kind });
+    if (r.ok) toast(b.dataset.kind === "subtle" ? `Gradual degradation started on ${b.dataset.res}` : `Outage injected on ${b.dataset.res}`);
+  } else if (b.dataset.inc) {
+    e.stopPropagation();
+    if (b.dataset.to === "Resolved") return openResolve(b.dataset.inc);
+    r = await api("POST", `/api/incidents/${b.dataset.inc}/transition`, { to: b.dataset.to });
+    if (r.ok) toast(`${b.dataset.inc} moved to ${b.dataset.to}`);
+  } else if (b.id === "reset") {
+    r = await api("POST", "/api/reset", {});
+    if (r.ok) { closeDetail(); $("#form-msg").textContent = ""; app.keys = {}; toast("Console reset to the seed data"); }
+  } else if (b.id === "clock-btn") {
+    r = await api("POST", "/api/clock", { minutes: Number($("#clock-min").value) });
+    if (r.ok) toast(`Clock advanced ${$("#clock-min").value} minutes`);
+  } else return;
+  if (r && !r.ok) toast(r.data.error || "That action failed", true);
+  refresh();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { if (!$("#resolve").hidden) closeResolve(); else closeDetail(); }
+  if (e.key === "Enter" && e.target.classList && e.target.classList.contains("inc")) openDetail(e.target.dataset.id);
+});
+$("#detail-scrim").addEventListener("click", closeDetail);
+$("#resolve-scrim").addEventListener("click", closeResolve);
+$("#r-fix").addEventListener("input", (e) => { $("#r-fix-count").textContent = `${e.target.value.length} / 1000`; });
+$("#resolve-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = app.resolving, cat = $("#r-cat").value, fix = $("#r-fix").value;
+  $("#r-cat-err").textContent = cat ? "" : "Choose a root cause category.";
+  $("#r-fix-err").textContent = fix.trim().length >= 10 ? "" : "Describe the fix in at least 10 characters.";
+  if (!cat || fix.trim().length < 10) return;
+  const r = await api("POST", `/api/incidents/${id}/resolve`, { category: cat, fix });
+  if (!r.ok) {
+    const f = r.data.fields || {};
+    $("#r-cat-err").textContent = f.category || ""; $("#r-fix-err").textContent = f.fix || (f.category ? "" : r.data.error);
+    return;
+  }
+  closeResolve(); toast(`${id} resolved`); refresh();
+});
+$("#note-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const r = await api("POST", `/api/incidents/${app.detail}/notes`, { text: $("#note-text").value });
+  if (!r.ok) { $("#note-err").textContent = r.data.error; return; }
+  $("#note-text").value = ""; $("#note-err").textContent = ""; toast("Note added"); refresh();
+});
+$("#event-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const r = await api("POST", "/api/events", Object.fromEntries(new FormData(e.target)));
+  const msg = $("#form-msg");
+  msg.className = r.ok ? "ok" : "err";
+  msg.textContent = r.ok ? `Accepted: ${r.data.incident}` : `Rejected: ${r.data.error}`;
+  refresh();
+});
+for (const [id, key] of [["#q", "q"], ["#f-sev", "sev"], ["#f-status", "status"], ["#f-source", "source"]])
+  $(id).addEventListener("input", (e) => { app.filters[key] = e.target.value; if (app.S) renderQueue(app.S); tickCountdowns(); });
+$("#f-mine").addEventListener("change", (e) => { app.filters.mine = e.target.checked; if (app.S) renderQueue(app.S); tickCountdowns(); });
+
+// ---------------------------------------------------------------- start
+(async () => {
+  try { app.backend = await connect(); }
+  catch (e) { $("#mode-note").textContent = "Could not start: the platform engine or model failed to load."; return; }
+  const last = store.get("cirp-user");
+  await showLogin();
+  if (last && new URLSearchParams(location.search).has("resume")) signIn(last);
+  setInterval(refresh, 500);
+  setInterval(tickCountdowns, 1000);
+})();
+</script>
+
+</html>
